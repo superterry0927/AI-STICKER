@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>魔法Q版似顏繪生成器</title>
+    <title>魔法日式Q版貼圖生成器</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         /* 自定義進度條動畫 */
@@ -27,9 +27,9 @@
         <!-- 標題區 -->
         <header class="text-center mb-8">
             <h1 class="text-3xl md:text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-pink-500 mb-2">
-                ✨ 魔法Q版似顏繪生成器
+                ✨ 魔法日式Q版貼圖生成器
             </h1>
-            <p class="text-gray-500 text-sm">上傳照片，唸出咒語，召喚超可愛專屬貼圖！</p>
+            <p class="text-gray-500 text-sm">上傳照片，唸出咒語，變身超可愛動漫主角！</p>
         </header>
 
         <!-- 左右雙欄排版 (iPad橫式設計) -->
@@ -57,7 +57,7 @@
                     <!-- 咒語輸入 -->
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-2">2. 詠唱咒語 (貼圖風格或特徵)</label>
-                        <textarea id="promptInput" rows="3" placeholder="例如：請畫成Q版可愛風格，頭上帶著貓耳，加上閃亮亮的開心表情..." 
+                        <textarea id="promptInput" rows="3" placeholder="例如：請畫成日系魔法使，手裡拿著星星魔杖，加上閃亮亮的開心表情..." 
                                   class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all resize-none"></textarea>
                     </div>
 
@@ -93,12 +93,12 @@
 
                         <!-- 情緒價值血條區 -->
                         <div class="w-full space-y-6">
-                            <!-- 血條 1：相似度 -->
+                            <!-- 血條 1：可愛度爆表 -->
                             <div>
                                 <div class="flex justify-between items-end mb-1">
                                     <span class="text-sm font-semibold text-gray-700 flex items-center">
                                         <svg class="w-4 h-4 mr-1 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0zm6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                                        與原照片相似度
+                                        可愛度爆表
                                     </span>
                                     <span id="similarityText" class="text-sm font-bold text-blue-600">0%</span>
                                 </div>
@@ -107,7 +107,7 @@
                                         <div class="absolute inset-0 w-full h-full" style="background-image: linear-gradient(45deg,rgba(255,255,255,.15) 25%,transparent 25%,transparent 50%,rgba(255,255,255,.15) 50%,rgba(255,255,255,.15) 75%,transparent 75%,transparent); background-size: 1rem 1rem;"></div>
                                     </div>
                                 </div>
-                                <p class="text-xs text-gray-500 mt-1">捕捉到了靈魂神韻！</p>
+                                <p class="text-xs text-gray-500 mt-1">成功轉化為二次元風格！</p>
                             </div>
 
                             <!-- 血條 2：創意與美感 -->
@@ -255,8 +255,8 @@
         // 5. 處理血條動畫 (給予情緒價值)
         function animateProgressBars() {
             // 隨機產生高分的數值，給予使用者良好的情緒價值
-            // 相似度: 75% ~ 95%
-            const similarityScore = Math.floor(Math.random() * (95 - 75 + 1)) + 75;
+            // 可愛度: 80% ~ 99%
+            const similarityScore = Math.floor(Math.random() * (99 - 80 + 1)) + 80;
             // 創意與美感: 85% ~ 99%
             const creativityScore = Math.floor(Math.random() * (99 - 85 + 1)) + 85;
 
@@ -328,14 +328,14 @@
             try {
                 // ==========================================
                 // 第一階段：使用最新的 Gemini 2.5 系列模型解析照片特徵
-                // 專家優化：為求最高還原度，取消原本 30 字限制，改要求產出 150~300 字的精緻英文五官描述
+                // 日式Q版優化：要求 AI 專注於擷取能轉換為「動漫元素」的特徵，忽略寫實細節。
                 // ==========================================
-                btnText.textContent = '🔍 正在解析照片特徵...';
+                btnText.textContent = '🔍 正在解析動漫特徵...';
                 
                 const visionPayload = {
                     contents: [{
                         parts: [
-                            { text: "為了生成高度還原的似顏繪，請以「英文」鉅細靡遺地描述這張照片中人物的長相特徵（約 150 到 300 字）。請包含：性別、大概年齡感、臉型骨架、髮型與髮色、眉毛形狀、眼睛大小與神韻、鼻子特徵、嘴唇厚度、膚色、是否有眼鏡或鬍鬚配件、穿著特徵，以及整體的氣質。這段文字將作為 AI 繪圖的精確提示詞。" },
+                            { text: "為了生成可愛的日式 Q 版動漫角色，請以「英文」描述這張照片中人物的特徵（約 100 到 150 字）。請專注於：性別、髮型與髮色、眼睛特徵、服裝風格、主要顏色搭配，以及任何顯眼的配件（如眼鏡、帽子、首飾）。不需要過度寫實的骨架或年齡描述，這些特徵將轉化為可愛的動漫元素。" },
                             { inlineData: { mimeType: imageMimeType, data: base64Image } }
                         ]
                     }]
@@ -358,9 +358,9 @@
 
                         if (visionResponse.ok) {
                             visionResult = await visionResponse.json();
-                            faceDescription = visionResult.candidates?.[0]?.content?.parts?.[0]?.text || 'cute character';
+                            faceDescription = visionResult.candidates?.[0]?.content?.parts?.[0]?.text || 'cute anime character';
                             console.log(`✅ 成功調用模型：${modelName}`);
-                            console.log(`📝 萃取特徵：\n${faceDescription}`); // 幫助您在 F12 控制台檢視 AI 到底抓了哪些特徵
+                            console.log(`📝 擷取的動漫特徵：\n${faceDescription}`); 
                             break; // 成功獲取結果就跳出迴圈
                         } else {
                             const err = await visionResponse.json();
@@ -377,12 +377,12 @@
 
                 // ==========================================
                 // 第二階段：使用最新的 imagen-4.0 生成高品質貼圖
-                // Q版風格優化：強制加入 Chibi style 與繁體中文約束
+                // 日式Q版優化：加入強烈的動漫與 kawaii 關鍵字，移除似顏繪束縛。
                 // ==========================================
-                btnText.textContent = '🎨 正在繪製專屬貼圖...';
+                btnText.textContent = '🎨 正在繪製日式Q版貼圖...';
                 
-                // 強制轉換為 Q版風格，並約束文字產出為繁體中文
-                const combinedPrompt = `A high quality Chibi style (Q-version) illustration sticker, pure white background. The character MUST have a cute big head and a small body (super deformed). Character physical features based on extremely detailed description: ${faceDescription}. Additional user requests: ${userPrompt || 'super cute chibi anime style, highly detailed, vivid colors'}. IMPORTANT: If any text is included in the image, it MUST be written in Traditional Chinese (繁體中文).`;
+                // 強制轉換為正統日式 Q 版風格，並約束文字產出為繁體中文
+                const combinedPrompt = `A high quality Japanese chibi anime style illustration sticker, pure white background. The character MUST be in kawaii super deformed style with cute big anime eyes and vibrant colors. Character styling based on this description: ${faceDescription}. Additional user requests: ${userPrompt || 'super cute, highly detailed'}. IMPORTANT: If any text is included in the image, it MUST be written in Traditional Chinese (繁體中文).`;
 
                 const generatePayload = {
                     instances: [
