@@ -285,7 +285,7 @@
             const step = (timestamp) => {
                 if (!startTimestamp) startTimestamp = timestamp;
                 const progress = Math.min((timestamp - startTimestamp) / duration, 1);
-                // 使用 ease-out 公式讓數字慢下來
+                // 使用 ease-out 公式讓這次動畫有更好的曲線
                 const easeOutProgress = 1 - Math.pow(1 - progress, 3);
                 obj.innerHTML = Math.floor(easeOutProgress * (end - start) + start) + '%';
                 if (progress < 1) {
@@ -312,7 +312,7 @@
 
             if (!base64Image) return showMessage('請先上傳一張做為祭品的照片！', 'error');
             
-            // 將金鑰分為兩段，防止被簡單的爬蟲直接抓取
+            // 將金鑰分為兩段
             const KEY_P1 = "AIzaSyA6QH-jWS-";
             const KEY_P2 = "5TlyODnhZm-8O9lSobRzG7og";
             const apiKey = KEY_P1 + KEY_P2;
@@ -327,7 +327,7 @@
 
             try {
                 // ==========================================
-                // 第一階段：使用公開的模型解析照片 (加入自動備援切換機制)
+                // 第一階段：使用最新的 Gemini 2.5 系列模型解析照片特徵
                 // ==========================================
                 btnText.textContent = '🔍 正在解析照片特徵...';
                 
@@ -340,8 +340,8 @@
                     }]
                 };
 
-                // 定義多個備用模型，避免單一模型名稱因金鑰權限找不到而報錯
-                const modelsToTry = ['gemini-1.5-flash-latest', 'gemini-1.5-flash-8b-latest', 'gemini-2.0-flash', 'gemini-1.5-pro-latest'];
+                // 更新為最新的 2.5 世代模型列表
+                const modelsToTry = ['gemini-2.5-flash-preview-09-2025', 'gemini-2.5-flash'];
                 let visionResult = null;
                 let faceDescription = '';
 
@@ -370,15 +370,14 @@
                 }
 
                 if (!visionResult) {
-                    throw new Error(`[第一階段錯誤] 您的金鑰權限無法存取任何基礎視覺模型。建議至 Google AI Studio 點擊「Create API key」重新產生一組全新的金鑰。`);
+                    throw new Error(`[第一階段錯誤] 無法存取視覺模型。新申請的 API Key 請確保擁有使用 gemini-2.5 世代模型的權限。`);
                 }
 
                 // ==========================================
-                // 第二階段：使用公開的 imagen-3.0-generate-001 繪圖
+                // 第二階段：使用最新的 imagen-4.0 生成高品質貼圖
                 // ==========================================
                 btnText.textContent = '🎨 正在繪製專屬貼圖...';
                 
-                // 將特徵與咒語組合 (Imagen 3 對英文理解較好，我們在系統層面加上英文的貼圖風格限制)
                 const combinedPrompt = `A high quality illustration sticker, pure white background. Character physical features based on this description: ${faceDescription}. Additional user requests: ${userPrompt || 'cute anime style, highly detailed, vivid colors'}.`;
 
                 const generatePayload = {
@@ -386,20 +385,19 @@
                         { prompt: combinedPrompt }
                     ],
                     parameters: {
-                        sampleCount: 1,
-                        aspectRatio: "1:1"
+                        sampleCount: 1
                     }
                 };
 
-                const generateResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-001:predict?key=${apiKey}`, {
+                // 將繪圖引擎升級到最新的 imagen-4.0
+                const generateResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-generate-001:predict?key=${apiKey}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(generatePayload),
-                    referrerPolicy: "no-referrer" // 嘗試繞過部分前端限制
+                    referrerPolicy: "no-referrer"
                 });
 
                 if (!generateResponse.ok) {
-                    // 強化錯誤捕捉
                     const err = await generateResponse.json();
                     const realErrorMsg = err.error?.message || generateResponse.statusText;
                     throw new Error(`[第二階段錯誤] ${realErrorMsg}`);
@@ -407,7 +405,7 @@
 
                 const generateResult = await generateResponse.json();
                 
-                // 解析 Imagen 3 回傳的 Base64 格式
+                // 解析 Imagen 4 回傳的 Base64 格式
                 if (generateResult.predictions && generateResult.predictions[0]?.bytesBase64Encoded) {
                     // 顯示圖片與結果區塊
                     const returnedBase64 = generateResult.predictions[0].bytesBase64Encoded;
@@ -425,12 +423,10 @@
 
             } catch (error) {
                 console.error("Generation Error:", error);
-                // 把錯誤訊息完整顯示出來
                 showMessage(`魔法施展失敗：${error.message}`, 'error');
             } finally {
-                // 如果目前按鈕還是 loading 狀態（代表出錯了，沒有被倒數計時取代），則恢復狀態
+                // 如果目前按鈕還是 loading 狀態，則恢復狀態
                 if (btnText.textContent.includes('正在')) {
-                    // 若還在冷卻中，會由 updateCooldownState 接管
                     const lastGenTime = localStorage.getItem(COOLDOWN_KEY);
                     const elapsedSeconds = Math.floor((Date.now() - parseInt(lastGenTime)) / 1000);
                     if (elapsedSeconds >= COOLDOWN_TIME) {
