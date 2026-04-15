@@ -327,7 +327,7 @@
 
             try {
                 // ==========================================
-                // 第一階段：使用公開的 gemini-1.5-flash 解析照片
+                // 第一階段：使用公開的模型解析照片 (加入自動備援切換機制)
                 // ==========================================
                 btnText.textContent = '🔍 正在解析照片特徵...';
                 
@@ -340,22 +340,38 @@
                     }]
                 };
 
-                const visionResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(visionPayload),
-                    referrerPolicy: "no-referrer" // 嘗試繞過部分前端限制
-                });
+                // 定義多個備用模型，避免單一模型名稱因金鑰權限找不到而報錯
+                const modelsToTry = ['gemini-1.5-flash-latest', 'gemini-1.5-flash-8b-latest', 'gemini-2.0-flash', 'gemini-1.5-pro-latest'];
+                let visionResult = null;
+                let faceDescription = '';
 
-                if (!visionResponse.ok) {
-                    // 強化錯誤捕捉，把真正的 API 錯誤抓出來
-                    const err = await visionResponse.json();
-                    const realErrorMsg = err.error?.message || visionResponse.statusText;
-                    throw new Error(`[第一階段錯誤] ${realErrorMsg}`);
+                // 自動輪詢測試模型，直到有一個成功為止
+                for (const modelName of modelsToTry) {
+                    try {
+                        const visionResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(visionPayload),
+                            referrerPolicy: "no-referrer"
+                        });
+
+                        if (visionResponse.ok) {
+                            visionResult = await visionResponse.json();
+                            faceDescription = visionResult.candidates?.[0]?.content?.parts?.[0]?.text || '可愛的人物';
+                            console.log(`✅ 成功調用模型：${modelName}`);
+                            break; // 成功獲取結果就跳出迴圈
+                        } else {
+                            const err = await visionResponse.json();
+                            console.warn(`❌ 模型 ${modelName} 失敗：`, err.error?.message);
+                        }
+                    } catch (e) {
+                        console.warn(`請求 ${modelName} 時發生網路異常`);
+                    }
                 }
 
-                const visionResult = await visionResponse.json();
-                const faceDescription = visionResult.candidates?.[0]?.content?.parts?.[0]?.text || '可愛的人物';
+                if (!visionResult) {
+                    throw new Error(`[第一階段錯誤] 您的金鑰權限無法存取任何基礎視覺模型。建議至 Google AI Studio 點擊「Create API key」重新產生一組全新的金鑰。`);
+                }
 
                 // ==========================================
                 // 第二階段：使用公開的 imagen-3.0-generate-001 繪圖
