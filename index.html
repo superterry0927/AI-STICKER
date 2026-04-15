@@ -64,12 +64,18 @@
                     <!-- 系統提示訊息 -->
                     <div id="systemMessage" class="hidden rounded-xl p-4 text-sm"></div>
 
-                    <!-- 生成按鈕 -->
-                    <button id="generateBtn" class="w-full py-4 bg-gradient-to-r from-purple-600 to-pink-500 hover:from-purple-700 hover:to-pink-600 text-white rounded-xl font-bold text-lg shadow-md transform transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex justify-center items-center">
-                        <span id="btnText">✨ 立即生成貼圖</span>
-                        <span id="cooldownText" class="hidden ml-2 text-purple-200 text-sm font-normal"></span>
-                        <svg id="loadingIcon" class="animate-spin ml-2 h-5 w-5 text-white hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                    </button>
+                    <!-- 生成按鈕與額度提示 -->
+                    <div>
+                        <button id="generateBtn" class="w-full py-4 bg-gradient-to-r from-purple-600 to-pink-500 hover:from-purple-700 hover:to-pink-600 text-white rounded-xl font-bold text-lg shadow-md transform transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex justify-center items-center">
+                            <span id="btnText">✨ 立即生成貼圖</span>
+                            <span id="cooldownText" class="hidden ml-2 text-purple-200 text-sm font-normal"></span>
+                            <svg id="loadingIcon" class="animate-spin ml-2 h-5 w-5 text-white hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                        </button>
+                        <!-- 額度顯示區 -->
+                        <p id="quotaText" class="text-sm font-semibold text-center mt-3 text-purple-600 transition-colors">
+                            本機剩餘生成次數：3 / 3
+                        </p>
+                    </div>
                 </div>
             </div>
 
@@ -148,17 +154,49 @@
         const resultSection = document.getElementById('resultSection');
         const resultImage = document.getElementById('resultImage');
         const downloadBtn = document.getElementById('downloadBtn');
+        const quotaTextElement = document.getElementById('quotaText');
         
         const similarityBar = document.getElementById('similarityBar');
         const similarityText = document.getElementById('similarityText');
         const creativityBar = document.getElementById('creativityBar');
         const creativityText = document.getElementById('creativityText');
 
-        // 狀態變數
+        // 狀態變數與額度常數
         let base64Image = null;
         let imageMimeType = null;
         const COOLDOWN_TIME = 60; // 60秒冷卻
         const COOLDOWN_KEY = 'caricature_cooldown_timestamp';
+        
+        // 額度控制變數
+        const MAX_QUOTA = 3;
+        const QUOTA_KEY = 'caricature_used_quota';
+
+        // 額度管理功能
+        function getUsedQuota() {
+            return parseInt(localStorage.getItem(QUOTA_KEY) || '0');
+        }
+
+        function incrementQuota() {
+            const current = getUsedQuota();
+            localStorage.setItem(QUOTA_KEY, (current + 1).toString());
+            updateQuotaUI();
+        }
+
+        function updateQuotaUI() {
+            const used = getUsedQuota();
+            const remaining = Math.max(0, MAX_QUOTA - used);
+            
+            quotaTextElement.textContent = `本機剩餘生成次數：${remaining} / ${MAX_QUOTA}`;
+            
+            if (remaining <= 0) {
+                quotaTextElement.classList.replace('text-purple-600', 'text-red-500');
+                // 鎖死按鈕
+                generateBtn.disabled = true;
+                btnText.textContent = '❌ 額度已用盡';
+                cooldownText.classList.add('hidden');
+                loadingIcon.classList.add('hidden');
+            }
+        }
 
         // 2. 處理圖片上傳預覽
         imageInput.addEventListener('change', function(e) {
@@ -188,6 +226,12 @@
 
         // 3. 冷卻時間機制
         function updateCooldownState() {
+            // 如果額度已經用完，就直接跳出，維持鎖死狀態
+            if (getUsedQuota() >= MAX_QUOTA) {
+                updateQuotaUI();
+                return;
+            }
+
             const lastGenTime = localStorage.getItem(COOLDOWN_KEY);
             if (!lastGenTime) return;
 
@@ -214,6 +258,12 @@
 
         // 4. 管理按鈕與 UI 狀態
         function setButtonState(state, remainingSeconds = 0) {
+            // 安全防護：如果額度用盡，絕對不允許改變狀態為 ready
+            if (getUsedQuota() >= MAX_QUOTA) {
+                updateQuotaUI();
+                return;
+            }
+
             switch(state) {
                 case 'loading':
                     generateBtn.disabled = true;
@@ -255,26 +305,20 @@
         // 5. 處理血條動畫 (給予情緒價值)
         function animateProgressBars() {
             // 隨機產生高分的數值，給予使用者良好的情緒價值
-            // 可愛度: 80% ~ 99%
             const similarityScore = Math.floor(Math.random() * (99 - 80 + 1)) + 80;
-            // 創意與美感: 85% ~ 99%
             const creativityScore = Math.floor(Math.random() * (99 - 85 + 1)) + 85;
 
-            // 重置進度條
             similarityBar.style.width = '0%';
             creativityBar.style.width = '0%';
             similarityText.textContent = '0%';
             creativityText.textContent = '0%';
 
-            // 觸發重繪
             void similarityBar.offsetWidth;
 
-            // 動畫執行
             setTimeout(() => {
                 similarityBar.style.width = `${similarityScore}%`;
                 creativityBar.style.width = `${creativityScore}%`;
                 
-                // 數字計數器動畫
                 animateValue(similarityText, 0, similarityScore, 1500);
                 animateValue(creativityText, 0, creativityScore, 1500);
             }, 100);
@@ -285,7 +329,6 @@
             const step = (timestamp) => {
                 if (!startTimestamp) startTimestamp = timestamp;
                 const progress = Math.min((timestamp - startTimestamp) / duration, 1);
-                // 使用 ease-out 公式讓這次動畫有更好的曲線
                 const easeOutProgress = 1 - Math.pow(1 - progress, 3);
                 obj.innerHTML = Math.floor(easeOutProgress * (end - start) + start) + '%';
                 if (progress < 1) {
@@ -308,6 +351,12 @@
 
         // 7. 核心 API 呼叫流程
         generateBtn.addEventListener('click', async () => {
+            // 雙重防護：如果點擊時發現額度用盡，直接阻擋
+            if (getUsedQuota() >= MAX_QUOTA) {
+                updateQuotaUI();
+                return showMessage('您的生成額度已用盡！', 'error');
+            }
+
             const userPrompt = promptInput.value.trim();
 
             if (!base64Image) return showMessage('請先上傳一張做為祭品的照片！', 'error');
@@ -322,13 +371,14 @@
             resultSection.classList.add('hidden');
             setButtonState('loading');
             
-            // 不論成功或失敗，按下按鈕就觸發 60 秒冷卻
+            // 立即扣除一次額度，防止途中重整逃避計數
+            incrementQuota();
+            // 觸發 60 秒冷卻
             startCooldown();
 
             try {
                 // ==========================================
                 // 第一階段：使用最新的 Gemini 2.5 系列模型解析照片特徵
-                // 日式Q版優化：要求 AI 專注於擷取能轉換為「動漫元素」的特徵，忽略寫實細節。
                 // ==========================================
                 btnText.textContent = '🔍 正在解析動漫特徵...';
                 
@@ -341,12 +391,10 @@
                     }]
                 };
 
-                // 更新為最新的 2.5 世代模型列表
                 const modelsToTry = ['gemini-2.5-flash-preview-09-2025', 'gemini-2.5-flash'];
                 let visionResult = null;
                 let faceDescription = '';
 
-                // 自動輪詢測試模型，直到有一個成功為止
                 for (const modelName of modelsToTry) {
                     try {
                         const visionResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`, {
@@ -360,8 +408,7 @@
                             visionResult = await visionResponse.json();
                             faceDescription = visionResult.candidates?.[0]?.content?.parts?.[0]?.text || 'cute anime character';
                             console.log(`✅ 成功調用模型：${modelName}`);
-                            console.log(`📝 擷取的動漫特徵：\n${faceDescription}`); 
-                            break; // 成功獲取結果就跳出迴圈
+                            break; 
                         } else {
                             const err = await visionResponse.json();
                             console.warn(`❌ 模型 ${modelName} 失敗：`, err.error?.message);
@@ -377,11 +424,9 @@
 
                 // ==========================================
                 // 第二階段：使用最新的 imagen-4.0 生成高品質貼圖
-                // 日式Q版優化：加入強烈的動漫與 kawaii 關鍵字，移除似顏繪束縛。
                 // ==========================================
                 btnText.textContent = '🎨 正在繪製日式Q版貼圖...';
                 
-                // 強制轉換為正統日式 Q 版風格，並約束文字產出為繁體中文
                 const combinedPrompt = `A high quality Japanese chibi anime style illustration sticker, pure white background. The character MUST be in kawaii super deformed style with cute big anime eyes and vibrant colors. Character styling based on this description: ${faceDescription}. Additional user requests: ${userPrompt || 'super cute, highly detailed'}. IMPORTANT: If any text is included in the image, it MUST be written in Traditional Chinese (繁體中文).`;
 
                 const generatePayload = {
@@ -393,7 +438,6 @@
                     }
                 };
 
-                // 將繪圖引擎升級到最新的 imagen-4.0
                 const generateResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-generate-001:predict?key=${apiKey}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -409,17 +453,13 @@
 
                 const generateResult = await generateResponse.json();
                 
-                // 解析 Imagen 4 回傳的 Base64 格式
                 if (generateResult.predictions && generateResult.predictions[0]?.bytesBase64Encoded) {
-                    // 顯示圖片與結果區塊
                     const returnedBase64 = generateResult.predictions[0].bytesBase64Encoded;
                     resultImage.src = `data:image/png;base64,${returnedBase64}`;
                     
                     resultSection.classList.remove('hidden');
-                    // 捲動到結果區
                     resultSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
                     
-                    // 播放情緒價值血條動畫
                     animateProgressBars();
                 } else {
                     throw new Error('模型未回傳圖片資料，請稍後再試。');
@@ -428,19 +468,17 @@
             } catch (error) {
                 console.error("Generation Error:", error);
                 showMessage(`魔法施展失敗：${error.message}`, 'error');
+                // 若失敗，您可以選擇是否把額度還給學生。為了嚴格控管成本，目前設定為只要按下去就算一次。
             } finally {
-                // 如果目前按鈕還是 loading 狀態，則恢復狀態
                 if (btnText.textContent.includes('正在')) {
-                    const lastGenTime = localStorage.getItem(COOLDOWN_KEY);
-                    const elapsedSeconds = Math.floor((Date.now() - parseInt(lastGenTime)) / 1000);
-                    if (elapsedSeconds >= COOLDOWN_TIME) {
-                        setButtonState('ready');
-                    }
+                    // 若還在冷卻中且未達上限，恢復冷卻顯示
+                    updateCooldownState();
                 }
             }
         });
 
-        // 頁面載入時檢查冷卻狀態
+        // 頁面載入時初始化：檢查額度與冷卻狀態
+        updateQuotaUI();
         updateCooldownState();
     </script>
 </body>
