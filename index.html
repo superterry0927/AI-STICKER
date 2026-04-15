@@ -388,53 +388,73 @@
             startCooldown();
 
             try {
-                // 建立 API 請求 Payload
-                // 要求模型進行圖生圖，並強化「繁體中文」與「去背/貼圖風格」的指令
-                const systemPrompt = `你是一個專業的似顏繪插畫師。請將上傳的照片轉換為一張「去背（或純白背景）」的插畫貼圖。
-風格要求：精緻的似顏繪貼圖風格、色彩鮮明。
-使用者的額外要求（咒語）：${userPrompt || '無特定要求，請發揮創意繪製'}。
-絕對限制：如果圖片中需要包含任何文字，必須一律使用「繁體中文（正體中文）」，嚴禁簡體字或亂碼。`;
-
-                const payload = {
+                // ==========================================
+                // 第一階段：使用公開的 gemini-1.5-flash 解析照片
+                // ==========================================
+                btnText.textContent = '🔍 正在解析照片特徵...';
+                
+                const visionPayload = {
                     contents: [{
                         parts: [
-                            { text: systemPrompt },
+                            { text: "請簡短描述這張照片中人物的長相特徵（包含性別、髮型、髮色、是否戴眼鏡等），大約 30 字以內。" },
                             { inlineData: { mimeType: imageMimeType, data: base64Image } }
                         ]
-                    }],
-                    generationConfig: {
-                        responseModalities: ['TEXT', 'IMAGE']
+                    }]
+                };
+
+                const visionResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(visionPayload)
+                });
+
+                if (!visionResponse.ok) {
+                    throw new Error('無法解析照片特徵，請確認金鑰是否正確。');
+                }
+
+                const visionResult = await visionResponse.json();
+                const faceDescription = visionResult.candidates?.[0]?.content?.parts?.[0]?.text || '可愛的人物';
+
+                // ==========================================
+                // 第二階段：使用公開的 imagen-3.0-generate-001 繪圖
+                // ==========================================
+                btnText.textContent = '🎨 正在繪製專屬貼圖...';
+                
+                // 將特徵與咒語組合 (Imagen 3 對英文理解較好，我們在系統層面加上英文的貼圖風格限制)
+                const combinedPrompt = `A high quality illustration sticker, pure white background. Character physical features based on this description: ${faceDescription}. Additional user requests: ${userPrompt || 'cute anime style, highly detailed, vivid colors'}.`;
+
+                const generatePayload = {
+                    instances: [
+                        { prompt: combinedPrompt }
+                    ],
+                    parameters: {
+                        sampleCount: 1,
+                        aspectRatio: "1:1"
                     }
                 };
 
-                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image-preview:generateContent?key=${apiKey}`, {
+                const generateResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-001:predict?key=${apiKey}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload),
-                    referrerPolicy: "no-referrer"
+                    body: JSON.stringify(generatePayload)
                 });
 
-                if (!response.ok) {
-                    const err = await response.json();
-                    let errorMessage = err.error?.message || 'API 請求失敗';
-                    // 針對 Referer 阻擋提供更友善的錯誤提示
+                if (!generateResponse.ok) {
+                    const err = await generateResponse.json();
+                    let errorMessage = err.error?.message || '圖片生成失敗';
                     if (errorMessage.includes('referer') && errorMessage.includes('blocked')) {
-                        errorMessage = '您的 API 金鑰設定了網站限制。請至 Google Cloud Console 將金鑰的「應用程式限制」改為「無」，或將此網域加入允許清單。';
+                        errorMessage = 'API 金鑰被限制。請至 Google Cloud 將金鑰的「應用程式限制」改為「無」。';
                     }
                     throw new Error(errorMessage);
                 }
 
-                const result = await response.json();
+                const generateResult = await generateResponse.json();
                 
-                // 解析回傳資料，尋找 IMAGE 型態的 inlineData
-                const parts = result.candidates?.[0]?.content?.parts;
-                const imagePart = parts?.find(p => p.inlineData);
-
-                if (imagePart && imagePart.inlineData.data) {
+                // 解析 Imagen 3 回傳的 Base64 格式
+                if (generateResult.predictions && generateResult.predictions[0]?.bytesBase64Encoded) {
                     // 顯示圖片與結果區塊
-                    const returnedBase64 = imagePart.inlineData.data;
-                    const returnedMime = imagePart.inlineData.mimeType || 'image/png';
-                    resultImage.src = `data:${returnedMime};base64,${returnedBase64}`;
+                    const returnedBase64 = generateResult.predictions[0].bytesBase64Encoded;
+                    resultImage.src = `data:image/png;base64,${returnedBase64}`;
                     
                     resultSection.classList.remove('hidden');
                     // 捲動到結果區
@@ -448,7 +468,17 @@
 
             } catch (error) {
                 console.error("Generation Error:", error);
-                showMessage(`魔法施展失敗：${error.message}。請確認 API Key 是否正確或擁有圖生圖權限。`, 'error');
+                showMessage(`魔法施展失敗：${error.message}`, 'error');
+            } finally {
+                // 如果目前按鈕還是 loading 狀態（代表出錯了，沒有被倒數計時取代），則恢復狀態
+                if (btnText.textContent.includes('正在')) {
+                    // 若還在冷卻中，會由 updateCooldownState 接管
+                    const lastGenTime = localStorage.getItem(COOLDOWN_KEY);
+                    const elapsedSeconds = Math.floor((Date.now() - parseInt(lastGenTime)) / 1000);
+                    if (elapsedSeconds >= COOLDOWN_TIME) {
+                        setButtonState('ready');
+                    }
+                }
             }
         });
 
