@@ -328,13 +328,14 @@
             try {
                 // ==========================================
                 // 第一階段：使用最新的 Gemini 2.5 系列模型解析照片特徵
+                // 專家優化：為求最高還原度，取消原本 30 字限制，改要求產出 150~300 字的精緻英文五官描述
                 // ==========================================
                 btnText.textContent = '🔍 正在解析照片特徵...';
                 
                 const visionPayload = {
                     contents: [{
                         parts: [
-                            { text: "請簡短描述這張照片中人物的長相特徵（包含性別、髮型、髮色、是否戴眼鏡等），大約 30 字以內。" },
+                            { text: "為了生成高度還原的似顏繪，請以「英文」鉅細靡遺地描述這張照片中人物的長相特徵（約 150 到 300 字）。請包含：性別、大概年齡感、臉型骨架、髮型與髮色、眉毛形狀、眼睛大小與神韻、鼻子特徵、嘴唇厚度、膚色、是否有眼鏡或鬍鬚配件、穿著特徵，以及整體的氣質。這段文字將作為 AI 繪圖的精確提示詞。" },
                             { inlineData: { mimeType: imageMimeType, data: base64Image } }
                         ]
                     }]
@@ -357,8 +358,9 @@
 
                         if (visionResponse.ok) {
                             visionResult = await visionResponse.json();
-                            faceDescription = visionResult.candidates?.[0]?.content?.parts?.[0]?.text || '可愛的人物';
+                            faceDescription = visionResult.candidates?.[0]?.content?.parts?.[0]?.text || 'cute character';
                             console.log(`✅ 成功調用模型：${modelName}`);
+                            console.log(`📝 萃取特徵：\n${faceDescription}`); // 幫助您在 F12 控制台檢視 AI 到底抓了哪些特徵
                             break; // 成功獲取結果就跳出迴圈
                         } else {
                             const err = await visionResponse.json();
@@ -378,7 +380,7 @@
                 // ==========================================
                 btnText.textContent = '🎨 正在繪製專屬貼圖...';
                 
-                const combinedPrompt = `A high quality illustration sticker, pure white background. Character physical features based on this description: ${faceDescription}. Additional user requests: ${userPrompt || 'cute anime style, highly detailed, vivid colors'}.`;
+                const combinedPrompt = `A high quality illustration sticker, pure white background. Character physical features based on extremely detailed description: ${faceDescription}. Additional user requests: ${userPrompt || 'cute anime style, highly detailed, vivid colors'}.`;
 
                 const generatePayload = {
                     instances: [
